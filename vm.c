@@ -183,6 +183,7 @@ enum instruction_code {
 	OP_ADD,
 	OP_ADDW,
 	OP_JUMP,
+	OP_HALT,
 };
 
 struct instruction {
