@@ -110,6 +110,15 @@ FFFF+------------------------------+
  REGS - 64Bit
  ADDR - 32Bit
 
+* Calling convention
+	li r1, #addr[r3] # r1 <- 10
+	li r2, #addr[r4] # r2 <- "abc=%d"
+
+	# r1 <- 1 - printf("abc=%d", 10);
+        #       2 - open
+	#       3 - close
+	int 80		 # syscall+r1
+
 * Building and running the vm.
    -.1. make vm
    -.2. make run
@@ -184,29 +193,79 @@ enum instruction_code {
 	OP_ADDW,
 	OP_JUMP,
 	OP_HALT,
+	OP_INT,
 };
 
 struct instruction {
 	enum instruction_code code;
-	uint8_t regaddr0;
-	uint8_t regaddr1;
+	uint8_t ra0;
+	uint8_t ra1;
 };
 
 static struct instruction decode(uint16_t raw_instruction)
 {
-	struct instruction i = {};
+	struct instruction i = {
+		.code = ((1 << 8) - 1) & raw_instruction;
+		.ra0  = ((1 << 4) - 1) & (instruction >> 8);
+		.ra1  = ((1 << 4) - 1) & (instruction >> 8 + 4);
+	};
+
 	return i;
 }
+/**
+* Calling convention
+	li r1, #addr[r3] # r1 <- 10
+	li r2, #addr[r4] # r2 <- "abc=%d"
+
+	# r1 <- 1 - printf("abc=%d", 10);
+        #       2 - open
+	#       3 - close
+	int 80		 # syscall+r1
+
+
+
+
+	printf("%d-%d-%d", 15, 22, 01);
+
+	stack = [
+	4,
+	addr("%d-%d-%d"),
+	15,
+	22,
+	0
+	]
+*/
+
+enum {
+	FOO_PRINT = 1,
+	FOO_OPEN = 2,
+};
 
 static bool execute(struct vm *vm, struct instruction *instruction)
 {
 	switch(instruction->code) {
 	case OP_ADDW:
-		vm->regs[instruction->regaddr0] += vm->regs[instruction->regaddr1];
+		vm->regs[instruction->ra0] += vm->regs[instruction->ra1];
 		break;
 	case OP_JUMP:
-		vm->ip = vm->regs[instruction->regaddr0];
+		vm->ip = vm->regs[instruction->ra0];
 		break;
+	case OP_INT:
+		uint8_t int_type = instruction->ra0;
+		assert(int_type == 0x80);
+		uint64_t function = vm->regs[0];
+		uint64_t args_nr  = vm->ram[vm->sp];
+		switch(function) {
+		case FOO_PRINT:
+			break;
+		case FOO_OPEN: // open("filename.txt", flags)
+			char *filename_addr = (char *) vm->ram[vm->sp + 1];
+			int flags = (int) vm->ram[vm->sp + 2];
+			vm->regs[16] = open(filename_addr, flags);
+			break;
+		default:
+		};
+
 	case OP_HALT:
 	default:
 		return false;

@@ -4,6 +4,9 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <unistd.h>
+#include <string.h>
+
 
 uint8_t vm_ram[1<<10];
 
@@ -30,6 +33,11 @@ int main()
 		printf("%02x ", vm_ram[i]);
 	}
 	printf("\n");
+
+	{
+		const char *name="anatoliy!\n";
+		write(1, name, strlen(name));
+	}
 	return 0;
 }
 
