@@ -184,6 +184,12 @@ In [3]: fd.close()
 #include <assert.h>
 #include <unistd.h>
 
+// lab tasks:
+// 1) написать функцию vm_print, которая выводит все регистры in hex и первые N байт ram.
+// 2) написать реализацию Control flow инструкций.
+// 3) написать реализацию Arithmetical/logical + Move инструкций.
+// 4) написать тестовые прогаммы на ассемблере.
+
 
 struct vm {
 	uint64_t regs[16];
