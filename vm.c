@@ -182,6 +182,7 @@ In [3]: fd.close()
 #include <errno.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <unistd.h>
 
 
 struct vm {
@@ -192,7 +193,7 @@ struct vm {
 	uint16_t *rom;
 	uint64_t  rom_size;
 
-	uint64_t *ram;
+	void     *ram;
 	uint64_t  ram_size;
 };
 
@@ -293,18 +294,33 @@ enum {
 
 static bool execute(struct vm *vm, struct instruction *instruction)
 {
+	printf("\ninstruction=0x%02x arg0=0x%02x arg1=0x%02x\n",
+	       (int) instruction->code,
+	       (int) instruction->ra0, (int) instruction->ra1);
 	switch(instruction->code) {
 	case OP_LI:
 		vm->regs[instruction->ra0] = instruction->ra1;
 		break;
-	case OP_PUSH:
-		vm->ram[vm->sp--] = vm->ram[vm->regs[instruction->ra0]];
+	case OP_PUSH: {
+		uint64_t *dst;
+		vm->sp -= sizeof(uint64_t);
+		dst = vm->ram + vm->sp;
+		*dst = vm->regs[instruction->ra0];
 		break;
+	}
 	case OP_INT: {
 		uint64_t int_type = instruction->ra0;
-		uint64_t function = vm->regs[0];
-		uint64_t args_nr  = vm->ram[vm->sp];
-		assert(int_type == 0x80);
+		//uint64_t function = vm->regs[0];
+		//uint64_t args_nr  = vm->ram[vm->sp];
+		//assert(int_type == 0x80);
+
+		// syscall write()
+		{
+			uint64_t *src = vm->ram + vm->sp;
+			uint64_t len = src[0];
+			char *buf = vm->ram + src[1];
+			write(1, buf, len);
+		}
 
 		/* switch(function) { */
 		/* case FOO_PRINT: */
@@ -359,7 +375,7 @@ int main(int argc, char **argv)
 		.ram = calloc(RAM_SIZE, sizeof(char)),
 		.ram_size = RAM_SIZE,
 
-		.sp = RAM_SIZE - 1,
+		.sp = RAM_SIZE,
 	};
 
 	rc = parse_args(argc, argv, &ram_fn, &rom_fn);
