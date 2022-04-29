@@ -161,6 +161,16 @@ Sample program:
 00000010 1000 0000 | int 0x80
 00000011 0000 0000 | halt
 
+
+In [13]: fd=open("rom.bin", "wb")
+In [14]: fd.write(b'\x00\x00\x00\x1A\x00\x28\x01\x10\x01\x20\x02\x10\x03\x00')
+In [15]: fd.close()
+
+In [1]: fd=open("ram.bin", "wb")
+In [2]: fd.write(b'test\x00')
+In [3]: fd.close()
+
+
 --------------------------------------------------------------------------------
  */
 
@@ -230,11 +240,10 @@ static int parse_args(int argc, char **argv, char **ram_fn, char **rom_fn)
 }
 
 enum instruction_code {
-	OP_ADD,
-	OP_ADDW,
-	OP_JUMP,
-	OP_HALT,
-	OP_INT,
+	OP_LI,		// b00000000
+	OP_PUSH,	// b00000001
+	OP_INT,		// b00000010
+	OP_HALT,	// b00000011
 };
 
 struct instruction {
@@ -247,8 +256,8 @@ static struct instruction decode(uint16_t raw_instruction)
 {
 	struct instruction i = {
 		.code = ((1 << 8) - 1) & (raw_instruction),
-		.ra0  = ((1 << 4) - 1) & (raw_instruction >> 8),
-		.ra1  = ((1 << 4) - 1) & (raw_instruction >> 12),
+		.ra1  = ((1 << 4) - 1) & (raw_instruction >> 8),
+		.ra0  = ((1 << 4) - 1) & (raw_instruction >> 12),
 	};
 
 	return i;
@@ -285,11 +294,11 @@ enum {
 static bool execute(struct vm *vm, struct instruction *instruction)
 {
 	switch(instruction->code) {
-	case OP_ADDW:
-		vm->regs[instruction->ra0] += vm->regs[instruction->ra1];
+	case OP_LI:
+		vm->regs[instruction->ra0] = instruction->ra1;
 		break;
-	case OP_JUMP:
-		vm->ip = vm->regs[instruction->ra0];
+	case OP_PUSH:
+		vm->ram[vm->sp--] = vm->ram[vm->regs[instruction->ra0]];
 		break;
 	case OP_INT: {
 		uint64_t int_type = instruction->ra0;
@@ -297,21 +306,20 @@ static bool execute(struct vm *vm, struct instruction *instruction)
 		uint64_t args_nr  = vm->ram[vm->sp];
 		assert(int_type == 0x80);
 
-		switch(function) {
-		case FOO_PRINT:
-			break;
-		case FOO_OPEN:  // open("filename.txt", flags)
-			/* char *filename_addr = (char *) vm->ram[vm->sp + 1]; */
-			/* int flags = (int) vm->ram[vm->sp + 2]; */
-			/* vm->regs[16] = open(filename_addr, flags); */
-			break;
-		default:
-			;
-		};
+		/* switch(function) { */
+		/* case FOO_PRINT: */
+		/* 	break; */
+		/* case FOO_OPEN:  // open("filename.txt", flags) */
+		/* 	/\* char *filename_addr = (char *) vm->ram[vm->sp + 1]; *\/ */
+		/* 	/\* int flags = (int) vm->ram[vm->sp + 2]; *\/ */
+		/* 	/\* vm->regs[16] = open(filename_addr, flags); *\/ */
+		/* 	break; */
+		/* default: */
+		/* 	; */
+		/* }; */
 		break;
 	}
 	case OP_HALT:
-		break;
 	default:
 		return false;
 	}
@@ -320,7 +328,7 @@ static bool execute(struct vm *vm, struct instruction *instruction)
 
 static void vm_print(struct vm *vm)
 {
-	printf("vm state:\n");
+	printf("vm state: %p\n", vm);
 }
 
 static int run_vm(struct vm *vm)
@@ -350,6 +358,8 @@ int main(int argc, char **argv)
 
 		.ram = calloc(RAM_SIZE, sizeof(char)),
 		.ram_size = RAM_SIZE,
+
+		.sp = RAM_SIZE - 1,
 	};
 
 	rc = parse_args(argc, argv, &ram_fn, &rom_fn);
