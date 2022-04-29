@@ -123,6 +123,44 @@ FFFF+------------------------------+
    -.1. make vm
    -.2. make run
    -.3. make clean
+
+* RAM/ROM examples.
+ROM:
+0x00: 00000 111 0001 0000		-- li r1, #r2 (r2 == 0x00)
+0x01: 00000 111 0010 0000
+0x02: 00010 111 0001 0000
+0x03: 00001 111 0001 0000
+0x04: 00100 111 0001 0010
+0x05: 00101 111 0001 0010
+0x06: 00110 111 0001 0010
+0x07: 00111 111 0010 0001
+0x08: 01000 111 0000 0000
+0x09: 00000 000 0000 0000
+
+RAM:
+0x00
+....
+0x10: 'a' <-------------------------
+0x11: 'n'
+0x12: 'a'
+0x13: 't'
+0x14: 'o'
+0x15: 'l'
+0x16: 'i'
+0x17: 'y'
+0x18: '0'
+0x19:
+
+
+Sample program:
+00000000 0000 0000 | li r0 0       #  0 -- syscall(write)
+00000000 0001 1010 | li r1 10      # 10 -- address
+00000000 0010 1000 | li r2 8       #  8 -- len
+00000001 0001 0000 | push r1
+00000001 0010 0000 | push r2
+00000010 1000 0000 | int 0x80
+00000011 0000 0000 | halt
+
 --------------------------------------------------------------------------------
  */
 
@@ -130,18 +168,21 @@ FFFF+------------------------------+
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <stdint.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <assert.h>
+
 
 struct vm {
 	uint64_t regs[16];
 	uint64_t sp;
 	uint64_t ip;
 
-	void     *rom;
+	uint16_t *rom;
 	uint64_t  rom_size;
 
-	void     *ram;
+	uint64_t *ram;
 	uint64_t  ram_size;
 };
 
@@ -205,9 +246,9 @@ struct instruction {
 static struct instruction decode(uint16_t raw_instruction)
 {
 	struct instruction i = {
-		.code = ((1 << 8) - 1) & raw_instruction;
-		.ra0  = ((1 << 4) - 1) & (instruction >> 8);
-		.ra1  = ((1 << 4) - 1) & (instruction >> 8 + 4);
+		.code = ((1 << 8) - 1) & (raw_instruction),
+		.ra0  = ((1 << 4) - 1) & (raw_instruction >> 8),
+		.ra1  = ((1 << 4) - 1) & (raw_instruction >> 12),
 	};
 
 	return i;
@@ -250,23 +291,27 @@ static bool execute(struct vm *vm, struct instruction *instruction)
 	case OP_JUMP:
 		vm->ip = vm->regs[instruction->ra0];
 		break;
-	case OP_INT:
-		uint8_t int_type = instruction->ra0;
-		assert(int_type == 0x80);
+	case OP_INT: {
+		uint64_t int_type = instruction->ra0;
 		uint64_t function = vm->regs[0];
 		uint64_t args_nr  = vm->ram[vm->sp];
+		assert(int_type == 0x80);
+
 		switch(function) {
 		case FOO_PRINT:
 			break;
-		case FOO_OPEN: // open("filename.txt", flags)
-			char *filename_addr = (char *) vm->ram[vm->sp + 1];
-			int flags = (int) vm->ram[vm->sp + 2];
-			vm->regs[16] = open(filename_addr, flags);
+		case FOO_OPEN:  // open("filename.txt", flags)
+			/* char *filename_addr = (char *) vm->ram[vm->sp + 1]; */
+			/* int flags = (int) vm->ram[vm->sp + 2]; */
+			/* vm->regs[16] = open(filename_addr, flags); */
 			break;
 		default:
+			;
 		};
-
+		break;
+	}
 	case OP_HALT:
+		break;
 	default:
 		return false;
 	}
