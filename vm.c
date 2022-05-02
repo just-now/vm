@@ -184,15 +184,20 @@ In [3]: fd.close()
 #include <assert.h>
 #include <unistd.h>
 
+
 // lab tasks:
-// 1) написать функцию vm_print, которая выводит все регистры in hex и первые N байт ram.
-// 2) написать реализацию Control flow инструкций.
-// 3) написать реализацию Arithmetical/logical + Move инструкций.
-// 4) написать тестовые прогаммы на ассемблере.
+//+ 1) написать функцию vm_print, которая выводит все регистры in hex и первые N байт ram.
+//- 2) написать реализацию Control flow инструкций.
+//- 3) написать реализацию Arithmetical/logical + Move инструкций.
+//- 4) написать тестовые прогаммы на ассемблере.
+
+#define ARRAY_SIZE(a) ((sizeof (a)) / (sizeof (a)[0]))
+#define MAX(_x, _y) ((_x) > (_y) ? (_x) : (_y))
+#define MIN(_x, _y) ((_x) < (_y) ? (_x) : (_y))
 
 
 struct vm {
-	uint64_t regs[16];
+	uint64_t regs[14];
 	uint64_t sp;
 	uint64_t ip;
 
@@ -202,6 +207,31 @@ struct vm {
 	void     *ram;
 	uint64_t  ram_size;
 };
+
+static void ram_print(struct vm *vm, size_t ram_bytes_max)
+{
+	unsigned int i;
+	for (i = 0; i < MIN(ram_bytes_max, vm->ram_size); ++i) {
+		if (i % 16 == 0)
+			printf("\n");
+		printf("%02x ", ((char *) vm->ram)[i]);
+	}
+	printf("\n");
+}
+
+static void reg_print(struct vm *vm)
+{
+	unsigned int i;
+	for(i = 0; i < ARRAY_SIZE(vm->regs); ++i)
+		printf("r%u=0x%02lx\n", i, vm->regs[i]);
+}
+
+static void vm_print(struct vm *vm, size_t ram_bytes_max)
+{
+	printf("vm state:\n");
+	reg_print(vm);
+	ram_print(vm, ram_bytes_max);
+}
 
 static void usage()
 {
@@ -300,7 +330,7 @@ enum {
 
 static bool execute(struct vm *vm, struct instruction *instruction)
 {
-	printf("\ninstruction=0x%02x arg0=0x%02x arg1=0x%02x\n",
+	printf("instruction=0x%02x arg0=0x%02x arg1=0x%02x\n",
 	       (int) instruction->code,
 	       (int) instruction->ra0, (int) instruction->ra1);
 	switch(instruction->code) {
@@ -348,11 +378,6 @@ static bool execute(struct vm *vm, struct instruction *instruction)
 	return true;
 }
 
-static void vm_print(struct vm *vm)
-{
-	printf("vm state: %p\n", vm);
-}
-
 static int run_vm(struct vm *vm)
 {
 	struct instruction instruction;
@@ -361,7 +386,7 @@ static int run_vm(struct vm *vm)
 		instruction = decode(rom[vm->ip++]);
 	} while(execute(vm, &instruction));
 
-	vm_print(vm);
+	vm_print(vm, 32);
 	return 0;
 }
 
